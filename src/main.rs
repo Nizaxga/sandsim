@@ -1,6 +1,6 @@
 use crossterm::{
     cursor::MoveTo,
-    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind, read},
+    event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind, poll, read},
     execute,
     terminal::{
         Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
@@ -8,7 +8,9 @@ use crossterm::{
     },
 };
 use std::io::{Write, stdout};
+use std::time::{Duration, Instant};
 
+const PHYSICS_TICK: Duration = Duration::from_millis(30);
 const WIDTH: usize = 60;
 const HEIGHT: usize = 24;
 
@@ -96,6 +98,7 @@ fn main() -> Result<(), std::io::Error> {
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = stdout();
     let mut grid = new_grid();
+    let mut last_update = Instant::now();
     enable_raw_mode()?;
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture,)?;
 
@@ -108,21 +111,27 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         stdout.flush()?;
         loop {
             sand_fall(&mut grid);
-            render(&grid, &mut stdout)?;
-            match read()? {
-                Event::Key(event) if event.code == KeyCode::Char('q') => break,
-                Event::Mouse(mouse_event) => {
-                    if let MouseEventKind::Down(_) = mouse_event.kind {
-                        let x = mouse_event.column as usize;
-                        let y = mouse_event.row as usize;
+            if poll(Duration::from_millis(1))? {
+                match read()? {
+                    Event::Key(event) if event.code == KeyCode::Char('q') => break,
+                    Event::Mouse(mouse_event) => {
+                        if let MouseEventKind::Down(_) = mouse_event.kind {
+                            let x = mouse_event.column as usize;
+                            let y = mouse_event.row as usize;
 
-                        if x >= 1 && x <= WIDTH && y > 1 && y <= HEIGHT {
-                            grid[y - 1][x - 1] = Cell::Sand;
+                            if (1..WIDTH).contains(&x) && (1..HEIGHT).contains(&y) {
+                                grid[y - 1][x - 1] = Cell::Sand;
+                            }
                         }
                     }
+                    _ => {}
                 }
-                _ => {}
             }
+            if last_update.elapsed() >= PHYSICS_TICK {
+                last_update = Instant::now();
+                sand_fall(&mut grid);
+            }
+            render(&grid, &mut stdout)?;
         }
 
         Ok(())

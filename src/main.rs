@@ -53,8 +53,18 @@ fn draw_frame(stdout: &mut std::io::Stdout) -> Result<(), std::io::Error> {
 fn sand_fall(grid: &mut Grid) {
     for y in (0..HEIGHT - 1).rev() {
         for x in 0..WIDTH {
-            if grid[y][x] == Cell::Sand && grid[y + 1][x] == Cell::Empty {
+            if grid[y][x] != Cell::Sand {
+                continue;
+            }
+
+            if grid[y + 1][x] == Cell::Empty {
+                grid[y][x] = Cell::Empty;
                 grid[y + 1][x] = Cell::Sand;
+            } else if x > 1 && grid[y + 1][x - 1] == Cell::Empty {
+                grid[y][x] = Cell::Empty;
+                grid[y + 1][x - 1] = Cell::Sand;
+            } else if x + 1 < WIDTH && grid[y + 1][x + 1] == Cell::Empty {
+                grid[y + 1][x + 1] = Cell::Sand;
                 grid[y][x] = Cell::Empty;
             }
         }
@@ -118,7 +128,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         Ok(())
     })();
 
-    disable_raw_mode()?;
     execute!(stdout, LeaveAlternateScreen, DisableMouseCapture)?;
+    disable_raw_mode()?;
     result
 }

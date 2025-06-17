@@ -50,6 +50,17 @@ fn draw_frame(stdout: &mut std::io::Stdout) -> Result<(), std::io::Error> {
     Ok(())
 }
 
+fn sand_fall(grid: &mut Grid) {
+    for y in (0..HEIGHT - 1).rev() {
+        for x in 0..WIDTH {
+            if grid[y][x] == Cell::Sand && grid[y + 1][x] == Cell::Empty {
+                grid[y + 1][x] = Cell::Sand;
+                grid[y][x] = Cell::Empty;
+            }
+        }
+    }
+}
+
 fn render(grid: &Grid, stdout: &mut std::io::Stdout) -> Result<(), std::io::Error> {
     for y in 0..HEIGHT {
         for x in 0..WIDTH {
@@ -86,6 +97,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         println!("Sand Simulation! Click to place sand. Press 'q' to quit.");
         stdout.flush()?;
         loop {
+            sand_fall(&mut grid);
             render(&grid, &mut stdout)?;
             match read()? {
                 Event::Key(event) if event.code == KeyCode::Char('q') => break,

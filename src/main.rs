@@ -1,7 +1,7 @@
 use crossterm::{
     cursor::MoveTo,
     event::{DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEventKind, poll, read},
-    execute,
+    execute, queue,
     terminal::{
         Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
         enable_raw_mode,
@@ -10,7 +10,7 @@ use crossterm::{
 use std::io::{Write, stdout};
 use std::time::{Duration, Instant};
 
-const PHYSICS_TICK: Duration = Duration::from_millis(30);
+const TICK: Duration = Duration::from_millis(30);
 const WIDTH: usize = 60;
 const HEIGHT: usize = 24;
 
@@ -22,33 +22,29 @@ enum Cell {
 
 type Grid = Vec<Vec<Cell>>;
 
-fn new_grid() -> Grid {
-    vec![vec![Cell::Empty; WIDTH]; HEIGHT]
-}
-
 fn draw_frame(stdout: &mut std::io::Stdout) -> Result<(), std::io::Error> {
     // top row
     execute!(stdout, MoveTo(0, 0))?;
-    print!("+");
+    write!(stdout, "+")?;
     for _ in 0..WIDTH {
-        print!("-");
+        write!(stdout, "-")?;
     }
-    print!("+");
+    write!(stdout, "+")?;
     // parallel columns
     for y in 1..HEIGHT + 1 {
         execute!(stdout, MoveTo(0, y as u16))?;
-        print!("|");
+        write!(stdout, "|")?;
         execute!(stdout, MoveTo((WIDTH + 1) as u16, y as u16))?;
-        print!("|");
+        write!(stdout, "|")?;
     }
 
     // bottom row
     execute!(stdout, MoveTo(0, (HEIGHT + 1) as u16))?;
-    print!("+");
+    write!(stdout, "+")?;
     for _ in 0..WIDTH {
-        print!("-");
+        write!(stdout, "-")?;
     }
-    print!("+");
+    write!(stdout, "+")?;
     Ok(())
 }
 
@@ -81,7 +77,8 @@ fn render(grid: &Grid, stdout: &mut std::io::Stdout) -> Result<(), std::io::Erro
                 Cell::Empty => ' ',
                 Cell::Sand => '*',
             };
-            print!("{}", ch);
+            queue!(stdout, MoveTo((x + 1) as u16, (y + 1) as u16))?;
+            write!(stdout, "{}", ch)?;
         }
     }
     stdout.flush()?;
@@ -97,8 +94,10 @@ fn main() -> Result<(), std::io::Error> {
 
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     let mut stdout = stdout();
-    let mut grid = new_grid();
+    let mut grid = vec![vec![Cell::Empty; WIDTH]; HEIGHT];
     let mut last_update = Instant::now();
+    let mut mouse_state = false;
+    let mut mouse_pos = (0, 0);
     enable_raw_mode()?;
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture,)?;
 
@@ -111,27 +110,37 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         stdout.flush()?;
         loop {
             sand_fall(&mut grid);
-            if poll(Duration::from_millis(1))? {
+            if poll(Duration::from_millis(30))? {
                 match read()? {
                     Event::Key(event) if event.code == KeyCode::Char('q') => break,
                     Event::Mouse(mouse_event) => {
-                        if let MouseEventKind::Down(_) = mouse_event.kind {
-                            let x = mouse_event.column as usize;
-                            let y = mouse_event.row as usize;
-
-                            if (1..WIDTH).contains(&x) && (1..HEIGHT).contains(&y) {
-                                grid[y - 1][x - 1] = Cell::Sand;
+                        mouse_pos = (mouse_event.column as usize, mouse_event.row as usize);
+                        match mouse_event.kind {
+                            MouseEventKind::Down(_) => {
+                                mouse_state = true;
                             }
+                            MouseEventKind::Up(_) => {
+                                mouse_state = false;
+                            }
+                            _ => {}
                         }
                     }
                     _ => {}
                 }
             }
-            if last_update.elapsed() >= PHYSICS_TICK {
+
+            if mouse_state {
+                let (x, y) = mouse_pos;
+                if (1..=WIDTH).contains(&x) && (1..=HEIGHT).contains(&y) {
+                    grid[y - 1][x - 1] = Cell::Sand;
+                }
+            }
+
+            if last_update.elapsed() >= TICK {
                 last_update = Instant::now();
                 sand_fall(&mut grid);
+                render(&grid, &mut stdout)?;
             }
-            render(&grid, &mut stdout)?;
         }
 
         Ok(())

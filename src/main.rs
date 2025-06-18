@@ -106,13 +106,16 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         execute!(stdout, Clear(ClearType::All))?;
         draw_frame(&mut stdout)?;
         execute!(stdout, MoveTo(0, (HEIGHT + 3) as u16))?;
-        println!("Sand Simulation! Click to place sand. Press 'q' to quit.");
+        println!("Sand Simulation! Click to place sand. Press 'q' to quit. Press 'r' to reset.");
         stdout.flush()?;
         loop {
             sand_fall(&mut grid);
             if poll(Duration::from_millis(30))? {
                 match read()? {
-                    Event::Key(event) if event.code == KeyCode::Char('q') => break,
+                    Event::Key(event) => {
+                        if event.code == KeyCode::Char('q') { break; }
+                        if event.code == KeyCode::Char('r') { grid = vec![vec![Cell::Empty; WIDTH]; HEIGHT]; }
+                    } 
                     Event::Mouse(mouse_event) => {
                         mouse_pos = (mouse_event.column as usize, mouse_event.row as usize);
                         match mouse_event.kind {
